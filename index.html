@@ -92,6 +92,14 @@
       border-bottom: 1px solid var(--line);
     }
 
+    .composer-fields {
+      display: grid;
+      flex: 1;
+      min-width: 0;
+      grid-template-columns: minmax(0, 1fr) minmax(142px, .38fr);
+      gap: 10px;
+    }
+
     .composer input, .search input {
       width: 100%;
       min-width: 0;
@@ -107,6 +115,8 @@
       padding: 0 18px;
       border-radius: 15px;
     }
+
+    .due-date { color: var(--muted); }
 
     .composer input:focus, .search input:focus {
       border-color: var(--primary);
@@ -192,13 +202,32 @@
     .check svg { width: 13px; }
     .todo-item.completed .check { border-color: var(--primary); color: white; background: var(--primary); }
 
+    .todo-main {
+      min-width: 0;
+    }
+
     .todo-text {
+      display: block;
       overflow-wrap: anywhere;
       line-height: 1.45;
       transition: color .18s;
     }
 
     .todo-item.completed .todo-text { color: #a5aab7; text-decoration: line-through; }
+
+    .todo-deadline {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .todo-deadline svg { width: 13px; height: 13px; }
+    .todo-deadline.overdue { color: var(--danger); }
+    .todo-item.completed .todo-deadline { color: #a5aab7; }
 
     .edit-input {
       width: 100%;
@@ -208,6 +237,19 @@
       outline: 3px solid var(--primary-soft);
       color: var(--text);
       background: #fff;
+    }
+
+    .edit-due-date {
+      width: 100%;
+      margin-top: 7px;
+      padding: 7px 9px;
+      border: 1px solid var(--primary);
+      border-radius: 9px;
+      outline: 3px solid var(--primary-soft);
+      color: var(--text);
+      background: #fff;
+      font: inherit;
+      font-size: 13px;
     }
 
     .actions { display: flex; gap: 4px; opacity: 0; transition: opacity .18s; }
@@ -267,6 +309,8 @@
       body { padding: 28px 12px; }
       .header { align-items: flex-start; flex-direction: column; gap: 10px; }
       .composer { padding: 18px; }
+      .composer { flex-wrap: wrap; }
+      .composer-fields { flex-basis: 100%; }
       .add-button { padding: 0 17px; }
       .toolbar { align-items: stretch; flex-direction: column; padding: 14px 18px; }
       .search { width: 100%; }
@@ -289,8 +333,12 @@
 
     <section class="panel" aria-label="Todo List 应用">
       <form class="composer" id="todoForm">
-        <label class="sr-only" for="todoInput">添加新任务</label>
-        <input id="todoInput" type="text" maxlength="120" autocomplete="off" placeholder="接下来要做什么？" required>
+        <div class="composer-fields">
+          <label class="sr-only" for="todoInput">添加新任务</label>
+          <input id="todoInput" type="text" maxlength="120" autocomplete="off" placeholder="接下来要做什么？" required>
+          <label class="sr-only" for="dueDateInput">截止日期</label>
+          <input class="due-date" id="dueDateInput" type="date" aria-label="截止日期">
+        </div>
         <button class="add-button" type="submit">＋ 添加</button>
       </form>
 
@@ -328,6 +376,7 @@
     const STORAGE_KEY = 'todo-list-items-v1';
     const todoForm = document.querySelector('#todoForm');
     const todoInput = document.querySelector('#todoInput');
+    const dueDateInput = document.querySelector('#dueDateInput');
     const todoList = document.querySelector('#todoList');
     const searchInput = document.querySelector('#searchInput');
     const taskCount = document.querySelector('#taskCount');
@@ -364,6 +413,23 @@
       return node.innerHTML;
     }
 
+    function formatDueDate(dueDate) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate ?? '')) return '';
+      const [year, month, day] = dueDate.split('-').map(Number);
+      return `截止 ${year}年${month}月${day}日`;
+    }
+
+    function getTodayKey() {
+      const today = new Date();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      return `${today.getFullYear()}-${month}-${day}`;
+    }
+
+    function isOverdue(todo) {
+      return Boolean(todo.dueDate && todo.dueDate < getTodayKey() && !todo.completed);
+    }
+
     function getVisibleTodos() {
       const keyword = searchInput.value.trim().toLocaleLowerCase('zh-CN');
       return todos.filter(todo => {
@@ -381,7 +447,10 @@
           <button class="check" type="button" data-action="toggle" aria-label="${todo.completed ? '标记为待完成' : '标记为已完成'}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 4 4L19 7"></path></svg>
           </button>
-          <span class="todo-text">${escapeHtml(todo.text)}</span>
+          <div class="todo-main">
+            <span class="todo-text">${escapeHtml(todo.text)}</span>
+            ${formatDueDate(todo.dueDate) ? `<span class="todo-deadline ${isOverdue(todo) ? 'overdue' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v5l3 2"></path></svg>${formatDueDate(todo.dueDate)}</span>` : ''}
+          </div>
           <div class="actions">
             <button class="icon-button" type="button" data-action="edit" aria-label="编辑任务" title="编辑">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path></svg>
@@ -422,6 +491,15 @@
       input.value = todo.text;
       input.maxLength = 120;
       textNode.replaceWith(input);
+
+      const dueInput = document.createElement('input');
+      dueInput.className = 'edit-due-date';
+      dueInput.type = 'date';
+      dueInput.value = todo.dueDate ?? '';
+      dueInput.setAttribute('aria-label', '截止日期');
+      const deadlineNode = item.querySelector('.todo-deadline');
+      if (deadlineNode) deadlineNode.replaceWith(dueInput);
+      else item.querySelector('.todo-main').appendChild(dueInput);
       input.focus();
       input.select();
 
@@ -432,24 +510,30 @@
         const value = input.value.trim();
         if (save && value) {
           todo.text = value;
+          todo.dueDate = dueInput.value || null;
           saveTodos();
         }
         render();
       };
 
-      input.addEventListener('blur', () => finish(true));
-      input.addEventListener('keydown', event => {
+      const finishOnBlur = () => requestAnimationFrame(() => {
+        if (!item.contains(document.activeElement)) finish(true);
+      });
+      input.addEventListener('blur', finishOnBlur);
+      dueInput.addEventListener('blur', finishOnBlur);
+      [input, dueInput].forEach(field => field.addEventListener('keydown', event => {
         if (event.key === 'Enter') finish(true);
         if (event.key === 'Escape') finish(false);
-      });
+      }));
     }
 
     todoForm.addEventListener('submit', event => {
       event.preventDefault();
       const text = todoInput.value.trim();
       if (!text) return;
-      todos.unshift({ id: makeId(), text, completed: false, createdAt: Date.now() });
+      todos.unshift({ id: makeId(), text, dueDate: dueDateInput.value || null, completed: false, createdAt: Date.now() });
       todoInput.value = '';
+      dueDateInput.value = '';
       saveTodos();
       render();
       todoInput.focus();
